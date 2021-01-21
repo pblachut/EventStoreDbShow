@@ -12,8 +12,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi.Models;
+using MongoDB.Driver;
 
-namespace EventStoreDbShowApi
+namespace EventStoreDbShowProjection
 {
     public class Startup
     {
@@ -30,10 +31,11 @@ namespace EventStoreDbShowApi
             services.AddControllers();
             services.AddSwaggerGen(c =>
             {
-                c.SwaggerDoc("v1", new OpenApiInfo {Title = "EventStoreDbShowApi", Version = "v1"});
+                c.SwaggerDoc("v1", new OpenApiInfo {Title = "EventStoreDbShowProjection", Version = "v1"});
             });
-
+            
             services.AddSingleton(CreateClient());
+            services.AddSingleton(CreateMongoClient());
             
             EventStoreClient CreateClient()
             {
@@ -41,7 +43,9 @@ namespace EventStoreDbShowApi
                     .Create(Configuration["EventStore:ConnectionString"]);
                 return new EventStoreClient(settings);
             }
-
+            
+            MongoClient CreateMongoClient()
+                => new(Configuration["Mongo:ConnectionString"]);
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -51,10 +55,14 @@ namespace EventStoreDbShowApi
             {
                 app.UseDeveloperExceptionPage();
                 app.UseSwagger();
-                app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "EventStoreDbShowApi v1"));
+                app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "EventStoreDbShowProjection v1"));
             }
 
+            app.UseHttpsRedirection();
+
             app.UseRouting();
+
+            app.UseAuthorization();
 
             app.UseEndpoints(endpoints => { endpoints.MapControllers(); });
         }
