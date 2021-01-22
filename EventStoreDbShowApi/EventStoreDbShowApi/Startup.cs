@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi.Models;
+using MongoDB.Driver;
 
 namespace EventStoreDbShowApi
 {
@@ -34,12 +35,20 @@ namespace EventStoreDbShowApi
             });
 
             services.AddSingleton(CreateClient());
+            services.AddSingleton(GetDatabase());
             
             EventStoreClient CreateClient()
             {
                 var settings = EventStoreClientSettings
                     .Create(Configuration["EventStore:ConnectionString"]);
                 return new EventStoreClient(settings);
+            }
+
+            IMongoDatabase GetDatabase()
+            {
+                var client = new MongoClient(Configuration["Mongo:ConnectionString"]);
+
+                return client.GetDatabase("ESShow");
             }
 
         }

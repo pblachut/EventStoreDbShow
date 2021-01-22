@@ -14,6 +14,8 @@ namespace EventStoreDbShowProjection
         private readonly TryGetCheckpoint _tryGetCheckpoint;
         private readonly SaveStreamCheckpoint _saveStreamCheckpoint;
 
+        private StreamSubscription? _streamSubscription;
+
         protected EsSubscription(
             EventStoreClient esClient, 
             string streamName, 
@@ -29,20 +31,28 @@ namespace EventStoreDbShowProjection
         public async Task Start()
         {
             var checkpoint = await _tryGetCheckpoint(_streamName);
-            var streamPosition = checkpoint.HasValue
-                ? StreamPosition.FromInt64(checkpoint.Value)
-                : StreamPosition.Start;
-            
-            await _esClient.SubscribeToStreamAsync(
-                _streamName,
-                streamPosition, 
-                async (subscription, evnt, cancellationToken) =>
-                {
-                    await Handle(evnt);
 
-                    await _saveStreamCheckpoint(_streamName, evnt.OriginalEventNumber.ToInt64());
-                });
+            _streamSubscription = checkpoint.HasValue
+                ? await _esClient.SubscribeToStreamAsync(
+                    _streamName,
+                    StreamPosition.FromInt64(checkpoint.Value), 
+                    async (subscription, evnt, cancellationToken) => await OnEventAppeared(evnt),
+                    resolveLinkTos: true)
+                : await _esClient.SubscribeToStreamAsync(
+                    _streamName,
+                    async (subscription, evnt, cancellationToken) => await OnEventAppeared(evnt), 
+                    resolveLinkTos: true);
+
+
+            async Task OnEventAppeared(ResolvedEvent esEvent)
+            {
+                await Handle(esEvent);
+
+                await _saveStreamCheckpoint(_streamName, esEvent.OriginalEventNumber.ToInt64());
+            }
         }
+
+        public async Task Stop() => _streamSubscription?.Dispose();
             
 
         protected abstract Task Handle(ResolvedEvent @event);

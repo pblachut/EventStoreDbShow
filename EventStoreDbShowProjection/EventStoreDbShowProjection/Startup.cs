@@ -33,11 +33,22 @@ namespace EventStoreDbShowProjection
             {
                 c.SwaggerDoc("v1", new OpenApiInfo {Title = "EventStoreDbShowProjection", Version = "v1"});
             });
-            
-            services.AddSingleton(CreateClient());
-            services.AddSingleton(CreateMongoClient());
-            
-            EventStoreClient CreateClient()
+
+            var mongo = CreateMongoClient();
+            var database = mongo.GetDatabase("ESShow");
+            var checkpointCollection = database.GetCollection<Checkpoint>(nameof(Checkpoint));
+            var tryGetCheckpoint = MongoCheckpointStore.PrepareTryGetCheckpoint(checkpointCollection);
+            var saveCheckpoint = MongoCheckpointStore.PrepareSaveStreamCheckpoint(checkpointCollection);
+
+            services.AddSingleton<IHostedService>(
+                new OrderSubscription(
+                    database.GetCollection<Order>(nameof(Order)),
+                    CreateEsClient(),
+                    tryGetCheckpoint,
+                    saveCheckpoint)
+            );
+
+            EventStoreClient CreateEsClient()
             {
                 var settings = EventStoreClientSettings
                     .Create(Configuration["EventStore:ConnectionString"]);

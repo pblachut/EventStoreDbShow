@@ -5,7 +5,9 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using EventStore.Client;
+using EventStoreDbShowProjection;
 using Microsoft.AspNetCore.Mvc;
+using MongoDB.Driver;
 
 namespace EventStoreDbShowApi.Controllers
 {
@@ -13,10 +15,12 @@ namespace EventStoreDbShowApi.Controllers
     public class EventStoreApi : ControllerBase
     {
         private readonly EventStoreClient _esClient;
+        private readonly IMongoCollection<Order> _orders;
 
-        public EventStoreApi(EventStoreClient esClient)
+        public EventStoreApi(EventStoreClient esClient, IMongoDatabase mongoDatabase)
         {
             _esClient = esClient;
+            _orders = mongoDatabase.GetCollection<Order>(nameof(Order));
         }
 
         [HttpPost]
@@ -72,7 +76,7 @@ namespace EventStoreDbShowApi.Controllers
         }
 
         [HttpGet]
-        [Route("getOrder")]
+        [Route("getOrderStream")]
         public async Task<List<string>> ReadStream(Guid orderId)
         {
             var read = _esClient.ReadStreamAsync(
@@ -85,6 +89,15 @@ namespace EventStoreDbShowApi.Controllers
             return events
                 .Select(e => Encoding.UTF8.GetString(e.Event.Data.ToArray()))
                 .ToList();
+        }
+
+        [HttpGet]
+        [Route("getOrder")]
+        public Task<Order> GetOrder(string orderId)
+        {
+            var filter = Builders<Order>.Filter.Eq(c => c.Id, orderId);
+
+            return _orders.Find(filter).SingleOrDefaultAsync();
         }
     }
 }
